@@ -18,7 +18,7 @@ list_key="$(get_tmux_option @claude_list_key 'u')"
 tmux bind-key "$launch_key" \
   run-shell "$CURRENT_DIR/scripts/launch.sh '#{pane_current_path}' '#{window_id}'"
 
-# Open the session picker. Capture the triggering client first (#{client_name})
-# so the picker can move it to the chosen session's origin window.
+# Open the session picker. When pressed from inside a session popup, list.sh
+# closes that popup first so the picker opens full-size on the outer client.
 tmux bind-key "$list_key" \
   run-shell "$CURRENT_DIR/scripts/list.sh '#{client_name}'"
