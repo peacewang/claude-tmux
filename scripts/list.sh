@@ -38,9 +38,10 @@ host="$(host_client)"
 tmux set-option -g @claude_parent "$host"
 
 # Host the picker on the outer client. -c is honored because that client has no
-# popup open now; fall back to the default client if none was found.
+# popup open now; fall back to the default client if none was found. -B = borderless
+# to match the launch popup (full coverage, no messy background).
 if [ -n "$host" ]; then
-  tmux display-popup -c "$host" -w "$w" -h "$h" -E "$DIR/picker.sh"
+  tmux display-popup -B -c "$host" -w "$w" -h "$h" -E "$DIR/picker.sh"
 else
-  tmux display-popup -w "$w" -h "$h" -E "$DIR/picker.sh"
+  tmux display-popup -B -w "$w" -h "$h" -E "$DIR/picker.sh"
 fi
