@@ -26,26 +26,24 @@ if [ -n "$wns" ]; then
   "$wns" --category claude-manager "$msg" >/dev/null 2>&1 && exit 0
 fi
 
-# 2) macOS terminal-notifier — click activates iTerm2 and attaches to the session
+# 2) macOS terminal-notifier — click restores the popup on the host client
 if command -v terminal-notifier >/dev/null 2>&1; then
   if [ -n "$session" ] && command -v osascript >/dev/null 2>&1; then
-    # Create a one-shot click handler: new iTerm2 tab → tmux attach to the session
-    tmp_scpt=$(mktemp /tmp/claude-tmux-notify.XXXXXX.scpt)
-    cat > "$tmp_scpt" << SCPTEOF
-on run
-    tell application "iTerm2"
-        activate
-        tell current window
-            create tab with default profile command "tmux attach -t ${session} || tmux list-sessions"
-        end tell
-    end tell
-end run
-SCPTEOF
+    # Write a one-shot bash script: activate iTerm2, find host client, display popup
+    tmp_sh=$(mktemp /tmp/claude-tmux-notify.XXXXXX.sh)
+    cat > "$tmp_sh" << SHEOF
+#!/bin/bash
+osascript -e 'tell application "iTerm2" to activate'
+client=\$(/usr/local/bin/tmux list-clients -F '#{client_name} #{session_name}' 2>/dev/null | grep -v 'claude-' | head -1 | awk '{print \$1}')
+if [ -n "\$client" ]; then
+  /usr/local/bin/tmux display-popup -c "\$client" -B -w 100% -h 100% -E '/usr/local/bin/tmux attach-session -t ${session}'
+fi
+SHEOF
+    chmod +x "$tmp_sh"
     terminal-notifier -title "$summary" -message "$body" \
       -activate com.googlecode.iterm2 -sound default \
-      -execute "osascript \"$tmp_scpt\" ; rm -f \"$tmp_scpt\"" >/dev/null 2>&1 && exit 0
-    # Cleanup stale tmp file if terminal-notifier failed to launch
-    rm -f "$tmp_scpt" 2>/dev/null
+      -execute "bash \"$tmp_sh\" ; rm -f \"$tmp_sh\"" >/dev/null 2>&1 && exit 0
+    rm -f "$tmp_sh" 2>/dev/null
   fi
   terminal-notifier -title "$summary" -message "$body" \
     -activate com.googlecode.iterm2 -sound default >/dev/null 2>&1 && exit 0

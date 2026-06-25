@@ -42,15 +42,14 @@ name="${path##*/}"
 [ -z "$name" ] && name="${session#claude-}"
 
 case "$new" in
-  waiting) msg="[NEEDS YOU] $name" ;;
-  idle)    msg="[DONE] $name" ;;
-  *)       msg="$name" ;;
+  waiting) title="$name"       body="需要你的输入" ;;
+  idle)    title="$name"       body="本轮已完成" ;;
+  *)       title="Claude Code" body="$name" ;;
 esac
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Foreground: wsl-notify-send returns in <0.5s, and backgrounding risks SIGHUP
-# when the hook's shell exits. Best-effort — errors swallowed, never block on failure.
-# NOTE: message stays ASCII — wsl-notify-send mangles non-ASCII (emoji/CJK) on a
-# non-UTF-8 Windows system locale. Colour lives in the tmux status bar instead.
-"$DIR/notify.sh" "Claude Code" "$msg" "$session" >/dev/null 2>&1
+# Best-effort — errors swallowed, never block on failure.
+# NOTE: WSL wsl-notify-send.exe may mangle non-ASCII on non-UTF-8 Windows locale;
+#       macOS terminal-notifier / osascript handle UTF-8 natively.
+"$DIR/notify.sh" "$title" "$body" "$session" >/dev/null 2>&1
 exit 0
