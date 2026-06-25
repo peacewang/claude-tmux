@@ -571,7 +571,7 @@ cp /tmp/wns-extracted/wsl-notify-send.exe ~/bin/
 
 **修复**（三处）：
 
-`tmux.conf` —— 浮层尺寸拉满：
+`tmux.conf` —— 浮层 100% 全屏（状态栏被盖住，detach 后恢复可见）：
 ```tmux
 set -g @claude_popup_width '100%'
 set -g @claude_popup_height '100%'
@@ -581,16 +581,16 @@ set -g @claude_popup_height '100%'
 ```bash
 # claude-<hash> 会话关 status，浮层 attach 时不再画第二条栏
 tmux set-option -t "$session" status off
-# -B 无边框；100% 填满 pane（host 状态栏仍在底部可见）
+# -B 无边框；100% 填满窗口，全屏体验（host 状态栏被覆盖，detach 后可见）
 tmux display-popup -B -w "$w" -h "$h" -E "tmux attach-session -t $session"
 ```
 
 `scripts/list.sh` —— picker 浮层同样加 `-B`。
 
-**效果**：浮层铺满整个 pane、无边框、**只剩 host 底部一条状态栏**（带圆点），背景干净。你在浮层里照样能看到其他会话的圆点（host 那条跑的就是 `statusbar.sh`）。
+**效果**：浮层全屏无边框，纯 claude 界面。状态栏（圆点）在 popup 内不可见——`detach`（`Alt+1, d`）回到 host 后状态栏恢复显示。取舍：全屏简洁优先，需要看其他会话状态时用选择器（`Alt+1, u`）或 detach 回 host。
 
 `★ Insight ─────────────────────────────────────`
-关掉的是"浮层内部那条临时栏"，保留的是"host 底部那条常驻栏"——反过来不可行（host 栏无法按浮层开关切换）。且 host 栏跑的就是 `statusbar.sh`，圆点信息不丢。popup 尺寸是相对 pane（不含状态栏行）的百分比，所以 100% 正好填满 pane、把状态栏留在底部单独显示，一举两得。
+`display-popup` 的百分比是相对**整个 client 窗口**（含状态栏行），不是相对 pane。所以 `-h 100%` 会盖住状态栏。如果你需要 popup 里也能瞥见圆点，把 `@claude_popup_height` 调成 `96%` 即可。
 `─────────────────────────────────────────────────`
 
 ---
