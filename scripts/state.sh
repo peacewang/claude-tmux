@@ -52,5 +52,5 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # when the hook's shell exits. Best-effort — errors swallowed, never block on failure.
 # NOTE: message stays ASCII — wsl-notify-send mangles non-ASCII (emoji/CJK) on a
 # non-UTF-8 Windows system locale. Colour lives in the tmux status bar instead.
-"$DIR/notify.sh" "Claude Code" "$msg" >/dev/null 2>&1
+"$DIR/notify.sh" "Claude Code" "$msg" "$session" >/dev/null 2>&1
 exit 0

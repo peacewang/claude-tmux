@@ -12,6 +12,7 @@ set -uo pipefail
 
 summary="${1:-Claude}"
 body="${2:-}"
+session="${3:-}"                                        # tmux session name (for click-to-attach)
 if [ -n "$body" ]; then msg="$summary  $body"; else msg="$summary"; fi
 
 # 1) wsl-notify-send.exe (check PATH, then ~/bin for hook contexts w/o full PATH)
@@ -25,8 +26,27 @@ if [ -n "$wns" ]; then
   "$wns" --category claude-manager "$msg" >/dev/null 2>&1 && exit 0
 fi
 
-# 2) macOS terminal-notifier — click activates iTerm2, -sound makes it unmissable
+# 2) macOS terminal-notifier — click activates iTerm2 and attaches to the session
 if command -v terminal-notifier >/dev/null 2>&1; then
+  if [ -n "$session" ] && command -v osascript >/dev/null 2>&1; then
+    # Create a one-shot click handler: new iTerm2 tab → tmux attach to the session
+    tmp_scpt=$(mktemp /tmp/claude-tmux-notify.XXXXXX.scpt)
+    cat > "$tmp_scpt" << SCPTEOF
+on run
+    tell application "iTerm2"
+        activate
+        tell current window
+            create tab with default profile command "tmux attach -t ${session} || tmux list-sessions"
+        end tell
+    end tell
+end run
+SCPTEOF
+    terminal-notifier -title "$summary" -message "$body" \
+      -activate com.googlecode.iterm2 -sound default \
+      -execute "osascript \"$tmp_scpt\" ; rm -f \"$tmp_scpt\"" >/dev/null 2>&1 && exit 0
+    # Cleanup stale tmp file if terminal-notifier failed to launch
+    rm -f "$tmp_scpt" 2>/dev/null
+  fi
   terminal-notifier -title "$summary" -message "$body" \
     -activate com.googlecode.iterm2 -sound default >/dev/null 2>&1 && exit 0
 fi
