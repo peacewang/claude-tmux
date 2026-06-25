@@ -13,7 +13,7 @@
 - 🚀 **启动器**（`prefix` + `a`）：为当前目录打开/附加一个 Claude 会话
 - ❌ **快速关闭**（`ctrl-x`）：从选择器中关闭已完成的会话
 - 🎨 **状态栏圆点**：tmux 底部状态栏常驻一排彩色圆点，瞥一眼就知道谁闲谁忙
-- 🔔 **桌面通知**：会话完成 / 需要你时弹 toast（WSL → Windows 原生）
+- 🔔 **桌面通知**：会话完成 / 需要你时弹 toast（WSL → Windows / macOS → 原生通知中心）
 - 🔌 **provider 注入**：每个会话用各自独立的模型 provider（通过 `sp` 切换）
 
 状态、状态栏、通知功能都是**可选**的：不配置 hooks 也能列出、预览、跳转、关闭会话，只是状态显示 `?` 而非彩色。
@@ -22,10 +22,10 @@
 
 ## 前置条件
 
-- **tmux ≥ 3.3**（`display-popup -c`、`-B` 无边框等需要 3.3+；Ubuntu 22.04 apt 冻结在 3.2a，需源码编译 3.6b）
+- **tmux ≥ 3.3**（`display-popup -c`、`-B` 无边框等需要 3.3+；Ubuntu 22.04 apt 冻结在 3.2a，需源码编译 3.6b；macOS 上 brew 可能因 Monterey 兼容性问题编译失败，同样可走源码编译）
 - **[fzf](https://github.com/junegunn/fzf)** —— 选择器界面
 - **[Claude Code](https://claude.com/claude-code)** CLI（`claude` 命令）
-- bash；Linux / macOS（桌面通知的 toast 通道在 WSL 下最完整）
+- bash / zsh；**Linux（含 WSL）、macOS** 均可用
 
 ## 安装
 
@@ -83,9 +83,13 @@ set -g status-right '#($HOME/code/peace/github/claude-tmux/scripts/statusbar.sh)
 run-shell '$HOME/code/peace/github/claude-tmux/claude_session_manager.tmux'
 ```
 
-> ⚠️ **关于 prefix 选 `Alt+1`**：Windows Terminal 默认用 `Alt+1..9` 切换标签页，会在终端层拦截按键。若 `Alt+1` 没反应，去 Windows Terminal 设置 → 交互 → 关掉"Alt+数字切换标签页"，或改用其他 prefix。
+> ⚠️ **关于 prefix 选 `Alt+1`**：
+> - **WSL / Windows Terminal**：Windows Terminal 默认用 `Alt+1..9` 切换标签页，会在终端层拦截按键。若 `Alt+1` 没反应，去 Windows Terminal 设置 → 交互 → 关掉"Alt+数字切换标签页"，或改用其他 prefix。
+> - **macOS / iTerm2**：iTerm2 默认把 Option+数字解释为特殊字符。只需在 Preferences → Profiles → Keys → Key Mappings 里添加一条：Keyboard Shortcut 按 `Option+1` → Action 选 "Send Escape Sequence" → Esc+ 填 `1`。**其他 Option 组合键不受影响**，特殊字符、单词跳转等照常用。
 >
 > ⚠️ **alias 不能写进 `@claude_command`**：插件走非交互 shell 启动，alias 不展开。`ccd` 必须写成展开后的真身 `claude --dangerously-skip-permissions`。
+
+> ⚠️ **macOS 源码安装后需额外配置**：Homebrew 在 macOS Monterey 上可能编译失败（bottle 不可用 + Ruby 兼容性问题），此时可手动源码编译 tmux 3.6b（编译命令见下文）。源码编译后需在 `tmux.conf` 顶部加一行 `set -g default-terminal "screen-256color"`——macOS 缺少 `tmux-256color` 的 terminfo 条目，不设的话退格键和字母输入会错乱。
 
 `tmux source ~/.config/tmux/tmux.conf` 重载即生效。
 
@@ -205,9 +209,10 @@ fi
 
 派发器优先级（first that works wins）：
 
-1. `wsl-notify-send.exe` —— WSL → Windows 原生 toast，不依赖 D-Bus（推荐）
-2. `notify-send` —— Linux 路线，需要 D-Bus 通知守护（WSLg 不内置，通常走不通）
-3. 终端铃声 `\a` —— 兜底
+1. `wsl-notify-send.exe` —— WSL → Windows 原生 toast，不依赖 D-Bus
+2. `osascript` —— macOS 原生通知中心，系统内置零依赖
+3. `notify-send` —— Linux 路线，需要 D-Bus 通知守护
+4. 终端铃声 `\a` —— 最终兜底
 
 ### 安装 wsl-notify-send.exe（WSL，一次性）
 
@@ -259,7 +264,7 @@ cp /tmp/wns-extracted/wsl-notify-send.exe ~/bin/
 ### 三层位置模型
 
 ```
-① WSL 终端（Windows Terminal）
+① 物理终端（Windows Terminal / iTerm2 / Terminal.app）
    └─ ② tmux 会话（host）—— 普通 shell，能跑 sp、能按 prefix
         └─ ③ claude 弹窗（prefix+a 打开）—— 直接是 claude 界面
 ```
@@ -283,6 +288,70 @@ set -g @claude_popup_height    '90%'     # 弹窗高度
 ```
 
 > 本实践的 `100%` 全屏 + 无边框是**代码内置**的（`launch.sh` / `list.sh` 硬编码 `-B` 和 `status off`），不受上面两个 popup 选项的默认值影响——但把宽高设成 `100%` 才能真正盖住 host 状态栏。
+
+---
+
+## macOS 特别说明
+
+### 安装 tmux
+
+Homebrew 在新版 macOS 上直接可用，但在 **macOS Monterey 及更早版本**上可能失败（bottle 不可用，Ruby 兼容性问题）。此时可源码编译：
+
+```sh
+# 依赖库确保已装（brew install libevent ncurses 即可）
+cd /tmp
+curl -sL https://github.com/tmux/tmux/releases/download/3.6b/tmux-3.6b.tar.gz -o tmux-3.6b.tar.gz
+rm -rf tmux-3.6b && tar xzf tmux-3.6b.tar.gz && cd tmux-3.6b
+CPPFLAGS="-I/usr/local/opt/ncurses/include -I/usr/local/include" \
+  LDFLAGS="-L/usr/local/opt/ncurses/lib -L/usr/local/lib" \
+  ./configure --prefix=/usr/local --disable-utf8proc
+make -j4 && sudo make install
+tmux -V   # tmux 3.6b
+```
+
+> `ncurses` 在 brew 下是 keg-only，需显式指定 `CPPFLAGS`/`LDFLAGS` 路径。`--disable-utf8proc` 是因为 macOS 上 utf8proc 非必须（tmux 自带 UTF-8 处理）。
+
+### terminfo 修复（关键）
+
+源码编译后缺少 `tmux-256color` 的 terminfo 条目，进 tmux 后退格键和字母输入会错乱。在 `tmux.conf` 顶部加一行：
+
+```tmux
+set -g default-terminal "screen-256color"
+```
+
+`screen-256color` 是 macOS 系统自带的 terminfo，功能与 `tmux-256color` 几乎相同。
+
+### prefix 键设置
+
+macOS 终端（iTerm2 / Terminal.app）默认不把 Option 当作 Meta 键。**无需全局改动 Option 键**，只需为 `Option+1` 这一个组合键添加映射：
+
+**iTerm2**：Preferences → Profiles → Keys → Key Mappings → `+`
+
+| 字段 | 值 |
+|------|-----|
+| Keyboard Shortcut | 按 `Option+1` |
+| Action | Send Escape Sequence |
+| Esc+ | `1` |
+
+其他 Option 组合键（特殊字符 `é`、单词跳转 `Option+←`/`→` 等）不受影响。
+
+### 桌面通知
+
+macOS 原生支持：`notify.sh` 内置 `osascript display notification` 分支，零额外依赖。且 macOS 是原生 UTF-8，通知文案可以正常使用中文（不受 WSL 的 ASCII 限制）。
+
+### 验证 provider 注入
+
+macOS 上没有 `/proc` 文件系统，改用 `ps` 查看 claude 进程的环境：
+
+```sh
+ps aux | grep -i claude | grep -v grep
+# 查看某进程的环境变量：
+ps eww <pid> | tr ' ' '\n' | grep ANTHROPIC
+```
+
+### 跨设备同步
+
+本仓库插件脚本通过 git 同步；个人 dotfile（`tmux.conf`、`settings.json`、`switch-provider.sh`）建议走 [EnvSync](https://github.com/peacetool/EnvSync) 按环境隔离——macOS 和 WSL 各自维护独立的 `tmux.conf` / `settings.json`，`switch-provider.sh` 放 `common/` 跨环境共享。详见项目 Wiki。
 
 ---
 
