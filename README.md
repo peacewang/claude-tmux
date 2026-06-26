@@ -212,23 +212,43 @@ fi
 
 - **何时发**：只在 `waiting` 或 `working→idle` 这两条转移边上发（避免 claude 反复 Stop 刷屏）。
 - **门禁**：`session_attached > 0`（你正盯着的会话 / popup 开着）时**不发**——不打扰你正在看的会话。
-- **文案**：纯 ASCII（`[DONE] <项目名>` / `[NEEDS YOU] <项目名>`），因为 wsl-notify-send.exe 在非 UTF-8 的中文 Windows 上会乱码 emoji/中文。
+- **文案**：项目名 + 状态动作（`⏸ 需要你的输入` / `✓ 本轮已完成`），中文 emoji。WSL 走 PowerShell toast 时中文/emoji 经 UTF-8 XML 文件传递，不乱码；macOS 原生 UTF-8。
+- **点击直达（WSL / macOS）**：通知带"恢复会话"动作，点击即在 host 终端以全屏 popup attach 到对应 claude 会话（对标 `prefix+a`），并自动把终端窗口提到最前。`prefix+d` 收起回 host，claude 后台继续。
 
 派发器优先级（first that works wins）：
 
-1. `wsl-notify-send.exe` —— WSL → Windows 原生 toast，不依赖 D-Bus
-2. `osascript` —— macOS 原生通知中心，系统内置零依赖
-3. `notify-send` —— Linux 路线，需要 D-Bus 通知守护
-4. 终端铃声 `\a` —— 最终兜底
+1. `powershell.exe` + `notify.ps1` —— WSL 原生 toast（PowerShell 5.1 自带，零依赖），支持点击直达
+2. `wsl-notify-send.exe` —— WSL toast 兜底（无点击动作，非 UTF-8 中文 Windows 上 emoji/中文可能乱码）
+3. `terminal-notifier` —— macOS 原生，`-execute` 点击恢复 popup
+4. `osascript` —— macOS 原生通知中心，系统内置零依赖
+5. `notify-send` —— Linux 路线，需要 D-Bus 通知守护
+6. 终端铃声 `\a` —— 最终兜底
 
-### 安装 wsl-notify-send.exe（WSL，一次性）
+### 安装 WSL 点击直达（一次性）
+
+```sh
+bash scripts/install-wsl-notify.sh
+```
+
+做两件事：注册 `claudetmux://` URL 协议到 `HKCU`（无需管理员），协议处理器为 `wsl.exe … scripts/restore.sh`；点击 toast 的"恢复会话"即触发 `restore.sh`——它用 `$TMUX` 身份（host client 的 socket/server-pid/client-pid）在 host client 上 `display-popup` attach 目标会话（tmux 3.6b 在 WSL 下 `display-popup -c <其他 client>` 会立即关闭，故改用 TMUX 身份不带 `-c`），并后台调 `activate-wt.ps1` 把终端窗口提到最前。PowerShell 5.1 系统自带，不装任何东西。仓库搬家后重跑一次即可（注册的路径指向当前位置）。
+
+> **WSL 已知限制**：
+> - toast action 的协议激活只能直接启动 `wsl.exe`（隐藏启动器如 wscript/powershell 不会被 toast action 启动），所以点击时 `wsl.exe` 会闪一个控制台窗口约 0.5 秒——`restore.sh` 后台发完 `display-popup` 即退出，使该窗口只闪一下而非常驻。
+> - `activate-wt.ps1` 把"最早启动的终端进程"（Windows Terminal 或 powershell）当作 host 提到最前。若你的 host 终端不是最早启动的，或用 cmd/其他终端，需调整该脚本。
+> - 通知停留时间由 Windows 系统设置控制；toast XML 设了 `duration="long"`（约 25 秒），之后进通知中心仍可点击。
+>
+> 卸载：删注册表项 `HKCU\Software\Classes\claudetmux`。
+
+### 安装 wsl-notify-send.exe（WSL 可选兜底）
+
+PowerShell toast 不可用时退到 `wsl-notify-send.exe`（无点击动作）：
 
 ```sh
 curl -fL -o /tmp/wns.zip \
   https://github.com/stuartleeks/wsl-notify-send/releases/download/v0.1.871612270/wsl-notify-send_windows_amd64.zip
 mkdir -p ~/bin && unzip -o /tmp/wns.zip -d /tmp/wns-extracted
 cp /tmp/wns-extracted/wsl-notify-send.exe ~/bin/
-~/bin/wsl-notify-send.exe "hello"          # 验证：Windows 弹 toast
+~/bin/wsl-notify-send.exe --appId claude-tmux "hello"   # 验证：Windows 弹 toast
 ```
 
 > 网络直连失败加 `--proxy http://<你的代理地址>`。`notify.sh` 会先查 PATH 再查 `$HOME/bin/`（hook 环境 PATH 可能不含 `~/bin`）。不装则退化到 `notify-send` 或终端铃声。

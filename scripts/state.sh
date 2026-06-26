@@ -42,14 +42,16 @@ name="${path##*/}"
 [ -z "$name" ] && name="${session#claude-}"
 
 case "$new" in
-  waiting) title="$name"       body="需要你的输入" ;;
-  idle)    title="$name"       body="本轮已完成" ;;
+  waiting) title="$name" body="⏸ 需要你的输入" ;;
+  idle)    title="$name" body="✓ 本轮已完成" ;;
   *)       title="Claude Code" body="$name" ;;
 esac
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Best-effort — errors swallowed, never block on failure.
-# NOTE: WSL wsl-notify-send.exe may mangle non-ASCII on non-UTF-8 Windows locale;
+# NOTE: WSL PowerShell toast (notify.sh preferred route) passes Chinese/emoji
+#       via a UTF-8 XML file, so no locale garbling. The wsl-notify-send.exe
+#       fallback may still mangle non-ASCII on non-UTF-8 Windows locales;
 #       macOS terminal-notifier / osascript handle UTF-8 natively.
 "$DIR/notify.sh" "$title" "$body" "$session" >/dev/null 2>&1
 exit 0
