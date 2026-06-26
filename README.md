@@ -67,6 +67,9 @@ unbind-key C-Space
 set -g prefix M-1
 bind-key M-1 send-prefix
 
+# --- 鼠标：滚轮滚动 scrollback、点击切 pane、拖拽调分隔线 ---
+set -g mouse on
+
 # --- 插件选项（必须在 run-shell 加载插件之前设置）---
 set -g @claude_launch_key 'a'                                    # prefix+a 启动
 set -g @claude_list_key   'u'                                    # prefix+u 选择器
@@ -88,6 +91,10 @@ run-shell '$HOME/code/peace/github/claude-tmux/claude_session_manager.tmux'
 > - **macOS / iTerm2**：iTerm2 默认把 Option+数字解释为特殊字符。只需在 Preferences → Profiles → Keys → Key Mappings 里添加一条：Keyboard Shortcut 按 `Option+1` → Action 选 "Send Escape Sequence" → Esc+ 填 `1`。**其他 Option 组合键不受影响**，特殊字符、单词跳转等照常用。
 >
 > ⚠️ **alias 不能写进 `@claude_command`**：插件走非交互 shell 启动，alias 不展开。`ccd` 必须写成展开后的真身 `claude --dangerously-skip-permissions`。
+
+> ⚠️ **鼠标滚轮滚动的是历史命令？** 那是 `mouse` 没开。tmux 默认 `mouse off`，此时终端把滚轮翻译成 ↑/↓ 方向键发给 pane 内的 shell，zsh 把 ↑/↓ 解释为历史命令导航——看起来就像"滚轮滚的是输入框历史"。`set -g mouse on` 后滚轮被 tmux 拦截，转成 scrollback 滚动（进入 copy-mode），才是预期的"窗口滚动"。
+>
+> 开启 `mouse on` 的配套行为：滚轮滚动 scrollback、左键点击切 pane、拖拽分隔线调 pane 大小。代价是左键拖拽选文本会被 tmux 拦截进 copy-mode 选区——**想用终端原生的复制，按住 `Shift` 再拖拽**即可绕过 tmux（WSL / Windows Terminal、macOS / iTerm2、Linux 通用约定）。
 
 > ⚠️ **macOS 源码安装后需额外配置**：Homebrew 在 macOS Monterey 上可能编译失败（bottle 不可用 + Ruby 兼容性问题），此时可手动源码编译 tmux 3.6b（编译命令见下文）。源码编译后需在 `tmux.conf` 顶部加一行 `set -g default-terminal "screen-256color"`——macOS 缺少 `tmux-256color` 的 terminfo 条目，不设的话退格键和字母输入会错乱。
 
