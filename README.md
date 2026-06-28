@@ -67,8 +67,13 @@ unbind-key C-Space
 set -g prefix M-1
 bind-key M-1 send-prefix
 
-# --- 鼠标：滚轮滚动 scrollback、点击切 pane、拖拽调分隔线 ---
+# --- 鼠标：mouse on（滚轮翻 scrollback）+ 接通系统剪贴板 ---
 set -g mouse on
+set -g set-clipboard off
+# 左键拖选释放 → 复制到系统剪贴板（WSL: clip.exe / macOS: pbcopy）
+bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "command -v clip.exe >/dev/null 2>&1 && clip.exe || pbcopy"
+# 右键 → 从系统剪贴板粘贴到当前 pane
+bind-key -n MouseDown3Pane run-shell 'if command -v powershell.exe >/dev/null 2>&1; then powershell.exe -NoProfile -Command "Get-Clipboard -Raw"; else pbpaste; fi | tr -d "\r" | sed "s/\n$//" | tmux load-buffer - && tmux paste-buffer -t "#{pane_id}"'
 
 # --- 插件选项（必须在 run-shell 加载插件之前设置）---
 set -g @claude_launch_key 'a'                                    # prefix+a 启动
@@ -92,9 +97,11 @@ run-shell '$HOME/code/peace/github/claude-tmux/claude_session_manager.tmux'
 >
 > ⚠️ **alias 不能写进 `@claude_command`**：插件走非交互 shell 启动，alias 不展开。`ccd` 必须写成展开后的真身 `claude --dangerously-skip-permissions`。
 
-> ⚠️ **鼠标滚轮滚动的是历史命令？** 那是 `mouse` 没开。tmux 默认 `mouse off`，此时终端把滚轮翻译成 ↑/↓ 方向键发给 pane 内的 shell，zsh 把 ↑/↓ 解释为历史命令导航——看起来就像"滚轮滚的是输入框历史"。`set -g mouse on` 后滚轮被 tmux 拦截，转成 scrollback 滚动（进入 copy-mode），才是预期的"窗口滚动"。
+> ⚠️ **鼠标复制粘贴 / 滚轮为什么不灵？** 根因是 tmux `mouse on` 拦截了所有鼠标事件：终端（WT / iTerm2）收不到鼠标，于是左键选中复制、右键粘贴、Ctrl+C/V 全部失效——左键拖拽只进了 tmux copy-mode 选区（没进系统剪贴板），右键变成 tmux 的 pane 菜单，Ctrl+C 在终端里本就是 SIGINT（不是复制）。单纯关掉 `mouse on` 又会让滚轮变成翻 claude 输入历史（claude 是全屏 alt-screen TUI，输出历史在 tmux scrollback 里，只有 `mouse on` 时滚轮才被 tmux 转成 scrollback 滚动）。
 >
-> 开启 `mouse on` 的配套行为：滚轮滚动 scrollback、左键点击切 pane、拖拽分隔线调 pane 大小。代价是左键拖拽选文本会被 tmux 拦截进 copy-mode 选区——**想用终端原生的复制，按住 `Shift` 再拖拽**即可绕过 tmux（WSL / Windows Terminal、macOS / iTerm2、Linux 通用约定）。
+> **本仓库的解法：保持 `mouse on`（滚轮翻历史），但把选区/右键直接接通系统剪贴板**——上方的 `MouseDragEnd1Pane` 绑定在拖选释放时把选区 pipe 给 `clip.exe`（macOS 用 `pbcopy`），右键 `MouseDown3Pane` 从 `Get-Clipboard`（macOS 用 `pbpaste`）读出并粘贴。于是 **滚轮翻历史、左键拖选即复制、右键即粘贴** 三者同时可用，无需切换键或 `Shift`。前提：claude 的 TUI 不抓鼠标——滚轮能翻 scrollback 即可证明（若抓了，滚轮会进 claude 而非 copy-mode）。
+>
+> 键盘复制粘贴：终端里 Ctrl+C 永远是中断信号，做不了复制；复制靠鼠标拖选即可，粘贴用 **右键** 或 Windows Terminal 的 **`Ctrl+Shift+V`**（WT 级粘贴会把剪贴板作为按键送进 tmux，与 mouse on 无关）。
 
 > ⚠️ **macOS 源码安装后需额外配置**：Homebrew 在 macOS Monterey 上可能编译失败（bottle 不可用 + Ruby 兼容性问题），此时可手动源码编译 tmux 3.6b（编译命令见下文）。源码编译后需在 `tmux.conf` 顶部加一行 `set -g default-terminal "screen-256color"`——macOS 缺少 `tmux-256color` 的 terminfo 条目，不设的话退格键和字母输入会错乱。
 
